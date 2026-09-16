@@ -53,25 +53,32 @@ enum PlaygroundRouter {
             return .json(["error": "url 필드가 필요합니다."], status: 400)
         }
 
+        let parsedURL: URL
         do {
-            _ = try NotionPageURL.parse(urlString)
+            parsedURL = try NotionPageURL.parse(urlString)
         } catch {
             return .json(["error": "올바른 http(s) URL이 아닙니다."], status: 400)
         }
 
         let started = Date()
         do {
-            let page = try await NotionSiteFetcher().fetchPage(from: urlString)
+            let page = try await NotionSiteFetcher().fetchPage(from: parsedURL)
             let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
-            return .json(
-                [
-                    "markdown": .string(page.markdown),
-                    "rootPageID": .string(page.rootPageID),
-                    "spaceID": page.spaceID.map { .string($0) } ?? .null,
-                    "blockCount": .number(Double(page.blocks.count)),
-                    "elapsedMs": .number(Double(elapsedMs)),
-                ]
-            )
+            let collectionRowCount = page.collectionRowIDs.values.reduce(0) { $0 + $1.count }
+            var body: [String: JSONValue] = [
+                "markdown": .string(page.markdown),
+                "rootPageID": .string(page.rootPageID),
+                "spaceID": page.spaceID.map { .string($0) } ?? .null,
+                "blockCount": .number(Double(page.blocks.count)),
+                "collectionCount": .number(Double(page.collections.count)),
+                "collectionViewCount": .number(Double(page.collectionViews.count)),
+                "collectionRowCount": .number(Double(collectionRowCount)),
+                "elapsedMs": .number(Double(elapsedMs)),
+            ]
+            if let viewID = NotionPageURL.viewID(from: parsedURL) {
+                body["viewID"] = .string(viewID)
+            }
+            return .json(body)
         } catch {
             return .json(
                 [
