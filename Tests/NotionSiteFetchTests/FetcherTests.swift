@@ -201,6 +201,196 @@ final class FetcherTests: XCTestCase {
         XCTAssertEqual(sleeper.delays, [2.0, 4.0])
     }
 
+    func testQueriesCollectionViewRows() async throws {
+        let client = ScriptedHTTPClient([
+            ScriptedCall(
+                urlSuffix: "loadCachedPageChunkV2",
+                statusCode: 200,
+                body: Fixtures.chunk(
+                    blocks: [
+                        Fixtures.rootID: Fixtures.blockRecord([
+                            "type": "page",
+                            "properties": ["title": [["Public Page"]]],
+                            "content": [.string(Fixtures.collectionViewBlockID)],
+                            "space_id": .string(Fixtures.spaceID),
+                        ]),
+                        Fixtures.collectionViewBlockID: Fixtures.blockRecord([
+                            "type": "collection_view",
+                            "properties": ["title": [["Tasks"]]],
+                            "collection_id": .string(Fixtures.collectionID),
+                            "view_ids": [.string(Fixtures.collectionViewID)],
+                            "space_id": .string(Fixtures.spaceID),
+                        ]),
+                    ],
+                    collections: [
+                        Fixtures.collectionID: Fixtures.collectionRecord([
+                            "name": [["Tasks"]],
+                            "schema": [
+                                "title": ["name": "Name", "type": "title"],
+                                "stat": ["name": "Status", "type": "select"],
+                            ],
+                        ]),
+                    ],
+                    collectionViews: [
+                        Fixtures.collectionViewID: Fixtures.collectionRecord([
+                            "type": "table",
+                            "format": [
+                                "table_properties": [
+                                    ["property": "title", "visible": true],
+                                    ["property": "stat", "visible": true],
+                                ],
+                            ],
+                        ]),
+                    ]
+                )
+            ),
+            ScriptedCall(
+                urlSuffix: "queryCollection",
+                statusCode: 200,
+                body: [
+                    "result": [
+                        "reducerResults": [
+                            "collection_group_results": [
+                                "type": "results",
+                                "blockIds": [
+                                    .string(Fixtures.collectionRow1ID),
+                                    .string(Fixtures.collectionRow2ID),
+                                ],
+                                "hasMore": false,
+                            ],
+                        ],
+                    ],
+                    "recordMap": [
+                        "block": [
+                            Fixtures.collectionRow1ID: Fixtures.blockRecord([
+                                "type": "page",
+                                "properties": [
+                                    "title": [["Alpha"]],
+                                    "stat": [["Done"]],
+                                ],
+                            ]),
+                            Fixtures.collectionRow2ID: Fixtures.blockRecord([
+                                "type": "page",
+                                "properties": [
+                                    "title": [["Beta"]],
+                                    "stat": [["Todo"]],
+                                ],
+                            ]),
+                        ],
+                    ],
+                ]
+            ),
+        ])
+
+        let fetcher = NotionSiteFetcher(client: client, sleeper: ImmediateSleeper())
+        let page = try await fetcher.fetchPage(
+            from: "https://www.notion.so/11111111111111111111111111111111"
+        )
+
+        XCTAssertEqual(
+            page.markdown,
+            """
+            # Public Page
+
+            Tasks
+
+            | Name | Status |
+            | --- | --- |
+            | Alpha | Done |
+            | Beta | Todo |
+
+            """
+        )
+        XCTAssertEqual(page.collectionRowIDs[Fixtures.collectionViewBlockID], [
+            Fixtures.collectionRow1ID,
+            Fixtures.collectionRow2ID,
+        ])
+        XCTAssertEqual(client.requests.count, 2)
+        XCTAssertEqual(
+            client.requests[1].body["collection"]["id"].string,
+            Fixtures.collectionID
+        )
+        XCTAssertEqual(
+            client.requests[1].body["collectionView"]["id"].string,
+            Fixtures.collectionViewID
+        )
+        XCTAssertEqual(
+            client.requests[1].body["loader"]["reducers"]["collection_group_results"]["limit"].int,
+            200
+        )
+    }
+
+    func testIgnoresCollectionViewOutsidePageTree() async throws {
+        let client = ScriptedHTTPClient([
+            ScriptedCall(
+                urlSuffix: "loadCachedPageChunkV2",
+                statusCode: 200,
+                body: Fixtures.chunk(blocks: [
+                    Fixtures.rootID: Fixtures.blockRecord([
+                        "type": "page",
+                        "properties": ["title": [["Row page"]]],
+                        "content": [.string(Fixtures.childID)],
+                        "space_id": .string(Fixtures.spaceID),
+                    ]),
+                    Fixtures.childID: Fixtures.blockRecord([
+                        "type": "text",
+                        "properties": ["title": [["Just text"]]],
+                    ]),
+                    Fixtures.collectionViewBlockID: Fixtures.blockRecord([
+                        "type": "collection_view",
+                        "properties": ["title": [["Parent database"]]],
+                        "collection_id": .string(Fixtures.collectionID),
+                        "view_ids": [.string(Fixtures.collectionViewID)],
+                    ]),
+                ])
+            ),
+        ])
+
+        let fetcher = NotionSiteFetcher(client: client, sleeper: ImmediateSleeper())
+        let page = try await fetcher.fetchPage(
+            from: "https://www.notion.so/11111111111111111111111111111111"
+        )
+        XCTAssertEqual(page.markdown, "# Row page\n\nJust text\n")
+        XCTAssertEqual(client.requests.count, 1)
+        XCTAssertTrue(page.collectionRowIDs.isEmpty)
+    }
+
+    func testKeepsPageWhenCollectionQueryFails() async throws {
+        let client = ScriptedHTTPClient([
+            ScriptedCall(
+                urlSuffix: "loadCachedPageChunkV2",
+                statusCode: 200,
+                body: Fixtures.chunk(blocks: [
+                    Fixtures.rootID: Fixtures.blockRecord([
+                        "type": "page",
+                        "properties": ["title": [["Visible"]]],
+                        "content": [.string(Fixtures.collectionViewBlockID)],
+                        "space_id": .string(Fixtures.spaceID),
+                    ]),
+                    Fixtures.collectionViewBlockID: Fixtures.blockRecord([
+                        "type": "collection_view",
+                        "properties": ["title": [["Hidden rows"]]],
+                        "collection_id": .string(Fixtures.collectionID),
+                        "view_ids": [.string(Fixtures.collectionViewID)],
+                    ]),
+                ])
+            ),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+            ScriptedCall(urlSuffix: "queryCollection", statusCode: 400, body: "private"),
+        ])
+
+        let fetcher = NotionSiteFetcher(client: client, sleeper: ImmediateSleeper())
+        let page = try await fetcher.fetchPage(
+            from: "https://www.notion.so/11111111111111111111111111111111"
+        )
+        XCTAssertEqual(page.markdown, "# Visible\n\nHidden rows\n")
+        XCTAssertNil(page.collectionRowIDs[Fixtures.collectionViewBlockID])
+    }
+
     func testMissingPublicHomePage() async throws {
         let client = ScriptedHTTPClient([
             ScriptedCall(
@@ -268,5 +458,18 @@ final class LiveFetchTests: XCTestCase {
         let page = try await NotionSiteFetcher().fetchPage(from: url)
         XCTAssertFalse(page.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         XCTAssertFalse(page.blocks.isEmpty)
+    }
+
+    func testLivePublicDatabaseIfEnabled() async throws {
+        let enabled = ProcessInfo.processInfo.environment["NOTION_SITE_FETCH_LIVE"] == "1"
+        try XCTSkipUnless(enabled, "Set NOTION_SITE_FETCH_LIVE=1 to run the live fetch.")
+        let url = ProcessInfo.processInfo.environment["NOTION_SITE_FETCH_LIVE_DB_URL"]
+            ?? "https://canvas-os.notion.site/122f88b8e7ce810683e0f21ccf1b61e9"
+        let page = try await NotionSiteFetcher().fetchPage(from: url)
+        XCTAssertFalse(page.collectionRowIDs.isEmpty, "expected queryCollection to return database rows")
+        XCTAssertTrue(
+            page.markdown.contains("|"),
+            "expected a markdown table of database rows, got:\n\(page.markdown)"
+        )
     }
 }
