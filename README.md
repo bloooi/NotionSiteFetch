@@ -93,7 +93,7 @@ Xcode에서 `Fetch.playground` 나 `Contents.swift` 만 열면 `No such module '
 **`Examples/XcodePlayground/NotionSiteFetch.xcworkspace` 를 여세요.**
 
 1. 스킴을 **Host** 로 둡니다.
-2. `Fetch.playground` 를 역니다.
+2. `Fetch.playground` 를 엽니다.
 3. Run (`⌥⌘↩`) 합니다.
 
 Host 커맨드라인 타깃이 로컬 패키지를 링크하고, Playground의 `buildActiveScheme` 이 그 모듈을 사용합니다. 자세한 내용은 [`Examples/XcodePlayground/README.md`](Examples/XcodePlayground/README.md) 입니다.
@@ -102,13 +102,13 @@ Host 커맨드라인 타깃이 로컬 패키지를 링크하고, Playground의 `
 
 ## 웹 플레이그라운드
 
-같은 라이브러리를 브라우저에서 눌러 볼 수 있습니다. 공개 페이지뿔 아니라 데이터베이스 뷰와 `app.notion.com/p/<space>/<page-id>?v=<view-id>` 도 여기서 가져옵니다.
+같은 라이브러리를 브라우저에서 눌러 볼 수 있습니다. 공개 페이지뿐 아니라 데이터베이스 뷰와 `app.notion.com/p/<space>/<page-id>?v=<view-id>` 도 여기서 가져옵니다.
 
 ```sh
 swift run notion-site-fetch-playground
 ```
 
-기본 주소는 `http://127.0.0.1:43147` 입니다. `HOST`(기본 `0.0.0.0`)와 `PORT` 로 바꿍니다.
+기본 주소는 `http://127.0.0.1:43147` 입니다. `HOST`(기본 `0.0.0.0`)와 `PORT` 로 바꿁니다.
 
 ## 동작
 
