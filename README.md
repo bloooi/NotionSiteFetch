@@ -60,7 +60,7 @@ print(page.collectionRowIDs)
 | `https://www.notion.so/<...>-<32-char-page-id>` | notion.so 페이지 URL |
 | `https://app.notion.com/p/<space>/<page-id>?v=<view-id>` | 게시된 페이지/데이터베이스. `v` 가 있으면 그 뷰의 행을 가져옵니다 |
 
-경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 쓠니다.
+경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 \uc501\ub2c8\ub2e4.
 
 ## CLI
 
@@ -93,7 +93,7 @@ Xcode에서 `Fetch.playground` 나 `Contents.swift` 만 열면 `No such module '
 **`Examples/XcodePlayground/NotionSiteFetch.xcworkspace` 를 여세요.**
 
 1. 스킴을 **Host** 로 둡니다.
-2. `Fetch.playground` 를 열니다.
+2. `Fetch.playground` 를 \uc5fd\ub2c8\ub2e4.
 3. Run (`⌥⌘↩`) 합니다.
 
 Host 커맨드라인 타깃이 로컬 패키지를 링크하고, Playground의 `buildActiveScheme` 이 그 모듈을 사용합니다. 자세한 내용은 [`Examples/XcodePlayground/README.md`](Examples/XcodePlayground/README.md) 입니다.
