@@ -24,6 +24,35 @@ final class PageURLTests: XCTestCase {
         XCTAssertEqual(pageID, "11111111-2222-3333-4444-555566667777")
     }
 
+    func testAppNotionPublishedPathUsesSpaceSiteAPI() throws {
+        let url = try NotionPageURL.parse(
+            "https://app.notion.com/p/cafe123abc/11111111222233334444555566667777?v=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )
+        XCTAssertEqual(
+            NotionPageURL.apiBase(for: url),
+            "https://cafe123abc.notion.site/api/v3"
+        )
+        XCTAssertEqual(NotionPageURL.spaceDomain(from: url), "cafe123abc")
+        XCTAssertEqual(
+            NotionPageURL.pageID(from: url),
+            "11111111-2222-3333-4444-555566667777"
+        )
+        XCTAssertEqual(
+            NotionPageURL.viewID(from: url),
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        )
+    }
+
+    func testPageIDIgnoresHexDigitsInWorkspaceSlug() throws {
+        let url = try NotionPageURL.parse(
+            "https://app.notion.com/p/cafe123abc/11111111222233334444555566667777"
+        )
+        XCTAssertEqual(
+            NotionPageURL.pageID(from: url),
+            "11111111-2222-3333-4444-555566667777"
+        )
+    }
+
     func testParseRejectsSchemelessText() {
         XCTAssertThrowsError(try NotionPageURL.parse("not-a-url")) { error in
             guard case NotionSiteFetchError.invalidURL = error else {
