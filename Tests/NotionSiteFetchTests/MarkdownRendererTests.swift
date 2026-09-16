@@ -1,0 +1,201 @@
+import XCTest
+@testable import NotionSiteFetch
+
+final class MarkdownRendererTests: XCTestCase {
+    func testRichTextDecorationsAndLinks() {
+        let runs: JSONValue = [
+            ["plain"],
+            ["bold", [["b"]]],
+            ["code", [["c"]]],
+            ["site", [["a", "https://example.com"], ["i"]]],
+        ]
+        XCTAssertEqual(
+            NotionMarkdownRenderer.renderRichText(runs),
+            "plain**bold**`code`[*site*](https://example.com)"
+        )
+    }
+
+    func testEmptyRichText() {
+        XCTAssertEqual(NotionMarkdownRenderer.renderRichText(nil), "")
+        XCTAssertEqual(NotionMarkdownRenderer.renderRichText(.null), "")
+        XCTAssertEqual(NotionMarkdownRenderer.renderRichText(.array([])), "")
+    }
+
+    func testRendersCoreBlockTypes() {
+        let root = "root"
+        let blocks: [String: JSONValue] = [
+            "root": [
+                "type": "page",
+                "properties": ["title": [["Kitchen Sink"]]],
+                "content": [
+                    "h", "p", "ul", "ol1", "ol2", "todo", "quote", "callout",
+                    "div", "code", "img", "mark", "eq", "skip", "unknown",
+                ],
+            ],
+            "h": [
+                "type": "header",
+                "properties": ["title": [["Section"]]],
+            ],
+            "p": [
+                "type": "text",
+                "properties": ["title": [["Hello", [["b"]]]]],
+            ],
+            "ul": [
+                "type": "bulleted_list",
+                "properties": ["title": [["Item"]]],
+                "content": ["nested"],
+            ],
+            "nested": [
+                "type": "bulleted_list",
+                "properties": ["title": [["Child"]]],
+            ],
+            "ol1": [
+                "type": "numbered_list",
+                "properties": ["title": [["One"]]],
+            ],
+            "ol2": [
+                "type": "numbered_list",
+                "properties": ["title": [["Two"]]],
+            ],
+            "todo": [
+                "type": "to_do",
+                "properties": [
+                    "title": [["Done"]],
+                    "checked": [["Yes"]],
+                ],
+            ],
+            "quote": [
+                "type": "quote",
+                "properties": ["title": [["Cited"]]],
+            ],
+            "callout": [
+                "type": "callout",
+                "properties": ["title": [["Note"]]],
+                "format": ["page_icon": "📎"],
+            ],
+            "div": ["type": "divider"],
+            "code": [
+                "type": "code",
+                "properties": [
+                    "title": [["print(\"hi\")"]],
+                    "language": [["Swift"]],
+                ],
+            ],
+            "img": [
+                "type": "image",
+                "properties": [
+                    "source": [["https://img.test/a.png"]],
+                    "caption": [["Alt"]],
+                ],
+            ],
+            "mark": [
+                "type": "bookmark",
+                "properties": [
+                    "title": [["Docs"]],
+                    "source": [["https://example.com"]],
+                ],
+            ],
+            "eq": [
+                "type": "equation",
+                "properties": ["title": [["E=mc^2"]]],
+            ],
+            "skip": ["type": "table_of_contents"],
+            "unknown": [
+                "type": "collection_view",
+                "properties": ["title": [["Database title"]]],
+            ],
+        ]
+
+        let markdown = NotionMarkdownRenderer.render(rootPageID: root, blocks: blocks)
+        let expected = """
+        # Kitchen Sink
+
+        ## Section
+
+        **Hello**
+
+        - Item
+            - Child
+        1. One
+        2. Two
+        - [x] Done
+        > Cited
+
+        > 📎 Note
+
+        ---
+
+        ```swift
+        print("hi")
+        ```
+
+        ![Alt](https://img.test/a.png)
+
+        [Docs](https://example.com)
+
+        $$E=mc^2$$
+
+        Database title
+
+        """
+        XCTAssertEqual(markdown, expected)
+    }
+
+    func testCollapseBlankLines() {
+        XCTAssertEqual(
+            NotionMarkdownRenderer.collapseBlankLines(["a", "", "", "b", ""]),
+            "a\n\nb\n"
+        )
+    }
+
+    func testRendersSimpleTableWithHeaderRow() {
+        let blocks: [String: JSONValue] = [
+            "root": [
+                "type": "page",
+                "properties": ["title": [["구독 관리"]]],
+                "content": ["table"],
+            ],
+            "table": [
+                "type": "table",
+                "format": [
+                    "table_block_column_order": ["colA", "colB"],
+                    "table_block_column_header": true,
+                ],
+                "content": ["h", "r1"],
+            ],
+            "h": [
+                "type": "table_row",
+                "properties": [
+                    "colA": [["이름"]],
+                    "colB": [["금액"]],
+                ],
+            ],
+            "r1": [
+                "type": "table_row",
+                "properties": [
+                    "colA": [["Netflix"]],
+                    "colB": [["13,500"]],
+                ],
+            ],
+        ]
+
+        XCTAssertEqual(
+            NotionMarkdownRenderer.render(rootPageID: "root", blocks: blocks),
+            """
+            # 구독 관리
+
+            | 이름 | 금액 |
+            | --- | --- |
+            | Netflix | 13,500 |
+
+            """
+        )
+    }
+
+    func testMissingBlockIsSkipped() {
+        XCTAssertEqual(
+            NotionMarkdownRenderer.render(rootPageID: "missing", blocks: [:]),
+            "\n"
+        )
+    }
+}
