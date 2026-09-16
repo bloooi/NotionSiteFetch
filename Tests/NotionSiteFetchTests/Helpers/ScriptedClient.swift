@@ -44,6 +44,11 @@ enum Fixtures {
     static let childID = "22222222-2222-2222-2222-222222222222"
     static let toggleChildID = "33333333-3333-3333-3333-333333333333"
     static let spaceID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    static let collectionViewBlockID = "44444444-4444-4444-4444-444444444444"
+    static let collectionID = "55555555-5555-5555-5555-555555555555"
+    static let collectionViewID = "66666666-6666-6666-6666-666666666666"
+    static let collectionRow1ID = "77777777-7777-7777-7777-777777777777"
+    static let collectionRow2ID = "88888888-8888-8888-8888-888888888888"
 
     static func blockRecord(_ value: JSONValue, spaceID: String? = nil) -> JSONValue {
         var record: [String: JSONValue] = [
@@ -55,14 +60,30 @@ enum Fixtures {
         return .object(record)
     }
 
-    static func chunk(blocks: [String: JSONValue], cursorStack: [JSONValue] = []) -> JSONValue {
-        [
-            "recordMap": [
-                "block": .object(blocks),
-            ],
+    static func chunk(
+        blocks: [String: JSONValue],
+        collections: [String: JSONValue] = [:],
+        collectionViews: [String: JSONValue] = [:],
+        cursorStack: [JSONValue] = []
+    ) -> JSONValue {
+        var recordMap: [String: JSONValue] = [
+            "block": .object(blocks),
+        ]
+        if !collections.isEmpty {
+            recordMap["collection"] = .object(collections)
+        }
+        if !collectionViews.isEmpty {
+            recordMap["collection_view"] = .object(collectionViews)
+        }
+        return [
+            "recordMap": .object(recordMap),
             "cursors": .array([
                 ["stack": .array(cursorStack)],
             ]),
         ]
+    }
+
+    static func collectionRecord(_ value: JSONValue) -> JSONValue {
+        ["value": ["value": value]]
     }
 }
