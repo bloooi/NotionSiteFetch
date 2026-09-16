@@ -73,7 +73,8 @@ public enum NotionMarkdownRenderer: Sendable {
         collections: [String: JSONValue] = [:],
         collectionViews: [String: JSONValue] = [:],
         collectionRowIDs: [String: [String]] = [:],
-        users: [String: JSONValue] = [:]
+        users: [String: JSONValue] = [:],
+        preferredViewID: String? = nil
     ) -> String {
         let lines = renderBlockLines(
             blockID: rootPageID,
@@ -82,6 +83,7 @@ public enum NotionMarkdownRenderer: Sendable {
             collectionViews: collectionViews,
             collectionRowIDs: collectionRowIDs,
             users: users,
+            preferredViewID: preferredViewID,
             indentLevel: 0,
             siblingListPosition: 0
         )
@@ -113,6 +115,7 @@ public enum NotionMarkdownRenderer: Sendable {
         collectionViews: [String: JSONValue] = [:],
         collectionRowIDs: [String: [String]] = [:],
         users: [String: JSONValue] = [:],
+        preferredViewID: String? = nil,
         indentLevel: Int,
         siblingListPosition: Int
     ) -> [String] {
@@ -223,6 +226,7 @@ public enum NotionMarkdownRenderer: Sendable {
                 collectionViews: collectionViews,
                 collectionRowIDs: collectionRowIDs,
                 users: users,
+                preferredViewID: preferredViewID,
                 indentLevel: indentLevel,
                 indentPrefix: indentPrefix
             ))
@@ -266,6 +270,7 @@ public enum NotionMarkdownRenderer: Sendable {
                 collectionViews: collectionViews,
                 collectionRowIDs: collectionRowIDs,
                 users: users,
+                preferredViewID: preferredViewID,
                 indentLevel: childIndentLevel,
                 siblingListPosition: numberedPositionCounter
             ))
@@ -284,6 +289,7 @@ public enum NotionMarkdownRenderer: Sendable {
         collectionViews: [String: JSONValue],
         collectionRowIDs: [String: [String]],
         users: [String: JSONValue],
+        preferredViewID: String?,
         indentLevel: Int,
         indentPrefix: String
     ) -> [String] {
@@ -300,11 +306,20 @@ public enum NotionMarkdownRenderer: Sendable {
             lines.append("")
         }
 
+        let viewIDs = blockValue["view_ids"].array.compactMap(\.string)
+        let selectedViewID = NotionSiteFetcher.selectViewID(preferredViewID, from: viewIDs)
+        let selectedView = selectedViewID.flatMap { collectionViews[$0] }
+        let fallbackViews = viewIDs.compactMap { id -> JSONValue? in
+            guard id != selectedViewID else { return nil }
+            return collectionViews[id]
+        }
+
         if let collection,
            let rowIDs = collectionRowIDs[blockID],
            let tableLines = renderCollectionTableLines(
             collection: collection,
-            view: blockValue["view_ids"].array.compactMap(\.string).first.flatMap({ collectionViews[$0] }),
+            view: selectedView,
+            fallbackViews: fallbackViews,
             rowIDs: rowIDs,
             allBlocks: allBlocks,
             users: users,
@@ -332,6 +347,7 @@ public enum NotionMarkdownRenderer: Sendable {
     private static func renderCollectionTableLines(
         collection: JSONValue,
         view: JSONValue?,
+        fallbackViews: [JSONValue] = [],
         rowIDs: [String],
         allBlocks: [String: JSONValue],
         users: [String: JSONValue],
@@ -340,7 +356,11 @@ public enum NotionMarkdownRenderer: Sendable {
         let schema = collection["schema"]
         guard !schema.object.isEmpty else { return nil }
 
-        let columnIDs = visibleCollectionColumnIDs(schema: schema, view: view)
+        let columnIDs = visibleCollectionColumnIDs(
+            schema: schema,
+            view: view,
+            fallbackViews: fallbackViews
+        )
         guard !columnIDs.isEmpty else { return nil }
 
         let headers = columnIDs.map { columnID in
@@ -371,8 +391,14 @@ public enum NotionMarkdownRenderer: Sendable {
         return lines
     }
 
-    static func visibleCollectionColumnIDs(schema: JSONValue, view: JSONValue?) -> [String] {
-        let tableProperties = (view ?? .null)["format"]["table_properties"].array
+    static func visibleCollectionColumnIDs(
+        schema: JSONValue,
+        view: JSONValue?,
+        fallbackViews: [JSONValue] = []
+    ) -> [String] {
+        let tableProperties = ([view].compactMap { $0 } + fallbackViews)
+            .map { $0["format"]["table_properties"].array }
+            .first(where: { !$0.isEmpty }) ?? []
         var columnIDs: [String] = []
         var seen = Set<String>()
         for entry in tableProperties {
