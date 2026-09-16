@@ -71,7 +71,7 @@ final class MarkdownRendererTests: XCTestCase {
             "callout": [
                 "type": "callout",
                 "properties": ["title": [["Note"]]],
-                "format": ["page_icon": "\ud83d\udcce"],
+                "format": ["page_icon": "📎"],
             ],
             "div": ["type": "divider"],
             "code": [
@@ -121,7 +121,7 @@ final class MarkdownRendererTests: XCTestCase {
         - [x] Done
         > Cited
 
-        > \ud83d\udcce Note
+        > 📎 Note
 
         ---
 
@@ -152,7 +152,7 @@ final class MarkdownRendererTests: XCTestCase {
         let blocks: [String: JSONValue] = [
             "root": [
                 "type": "page",
-                "properties": ["title": [["\uad6c\ub3c5 \uad00\ub9ac"]]],
+                "properties": ["title": [["구독 관리"]]],
                 "content": ["table"],
             ],
             "table": [
@@ -166,8 +166,8 @@ final class MarkdownRendererTests: XCTestCase {
             "h": [
                 "type": "table_row",
                 "properties": [
-                    "colA": [["\uc774\ub984"]],
-                    "colB": [["\uae08\uc561"]],
+                    "colA": [["이름"]],
+                    "colB": [["금액"]],
                 ],
             ],
             "r1": [
@@ -182,9 +182,9 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(
             NotionMarkdownRenderer.render(rootPageID: "root", blocks: blocks),
             """
-            # \uad6c\ub3c5 \uad00\ub9ac
+            # 구독 관리
 
-            | \uc774\ub984 | \uae08\uc561 |
+            | 이름 | 금액 |
             | --- | --- |
             | Netflix | 13,500 |
 
@@ -211,7 +211,7 @@ final class MarkdownRendererTests: XCTestCase {
                     "title": [["Alpha"]],
                     "stat": [["Done"]],
                     "when": [[
-                        "\u2023",
+                        "‣",
                         [["d", ["type": "date", "start_date": "2024-09-03"]]],
                     ]],
                     "done": [["Yes"]],
@@ -224,11 +224,11 @@ final class MarkdownRendererTests: XCTestCase {
                     "title": [["Beta"]],
                     "stat": [["Todo"]],
                     "rel": [[
-                        "\u2023",
+                        "‣",
                         [["p", "related"]],
                     ]],
                     "who": [[
-                        "\u2023",
+                        "‣",
                         [["u", "user-1"]],
                     ]],
                 ],
