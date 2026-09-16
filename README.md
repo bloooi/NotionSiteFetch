@@ -44,6 +44,7 @@ let page = try await NotionSiteFetcher().fetchPage(
 )
 print(page.markdown)
 print(page.rootPageID, page.blocks.count)
+print(page.collectionRowIDs)
 ```
 
 문자열 또는 `URL` 모두 받을 수 있습니다. `fetchMarkdown(from:)` 은 Markdown만 반환합니다.
@@ -58,7 +59,7 @@ print(page.rootPageID, page.blocks.count)
 | `https://<sub>.notion.site/<slug-or-id>` | 공개 사이트의 특정 페이지 |
 | `https://www.notion.so/<...>-<32-char-page-id>` | notion.so 페이지 URL |
 
-경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 씁니다.
+경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 쓹니다.
 
 ## CLI
 
@@ -74,7 +75,7 @@ swift run notion-site-fetch 'https://example.notion.site/' > page.md
 swift test
 ```
 
-단위 테스트는 URL 해석, 리치 텍스트/블록 렌더, 청크 페이지네이션, 토글 자식 `syncRecordValues`, 502 재시도, 공개 홈 없음/루트 블록 없음 오류를 커버합니다.
+단위 테스트는 URL 해석, 리치 텍스트/블록 렌더, 청크 페이지네이션, 토글 자식 `syncRecordValues`, 데이터베이스 `queryCollection`, 502 재시도, 공개 홈 없음/루트 블록 없음 오류를 커버합니다.
 
 실제 네트워크 확인:
 
@@ -106,12 +107,13 @@ Host 커맨드라인 타깃이 로컬 패키지를 링크하고, Playground의 `
 2. `POST /api/v3/getPublicSpaceData` — 공개 홈 페이지 블록 id
 3. `POST /api/v3/loadCachedPageChunkV2` — 커서 페이지네이션으로 블록 수집
 4. `POST https://www.notion.so/api/v3/syncRecordValues` — 청크에 빠진 토글 자식
+5. `POST /api/v3/queryCollection` — 데이터베이스/컬렉션 뷰 행 (`collection_view`, `collection_view_page`)
 
 가능하면 `*.notion.site` 호스트로 호출해 `www.notion.so` 의 cross-cell 오류를 피합니다.
 
-렌더 대상: H1–H4, 문단, 굵게/기울임/취소선/인라인 코드, 링크, 중첩 불릿/번호/할 일/토글, 인용, 콜아웃, 구분선, 코드 블록, 이미지, 북마크/비디오/파일/PDF/오디오 링크, 수식, Notion 단순 표(`table` / `table_row`).
+렌더 대상: H1–H4, 문단, 굵게/기울임/취소선/인라인 코드, 링크, 중첩 불릿/번호/할 일/토글, 인용, 콜아웃, 구분선, 코드 블록, 이미지, 북마크/비디오/파일/PDF/오디오 링크, 수식, Notion 단순 표(`table` / `table_row`), 데이터베이스 뷰 행(표/보드/리스트 등 — 기본 뷰의 보이는 속성을 Markdown 표로).
 
-의도적으로 건너뛰거나 단순화하는 것: 목차·브레드크럼, 컬럼 레이아웃(자식은 펼침), 데이터베이스/컬렉션 뷰(제목만 — 익명 뷰어에게 행 데이터가 열리지 않음). 페이지 안의 단순 표는 Markdown 표로 출력합니다.
+의도적으로 건너뛰거나 단순화하는 것: 목차·브레드크럼, 컬럼 레이아웃(자식은 펼침). 비공개 데이터베이스이거나 `queryCollection`이 실패하면 뷰 제목만 남깁니다. 페이지 안의 단순 표와 공개 데이터베이스 뷰는 Markdown 표로 출력합니다.
 
 요청한 페이지만 가져옵니다. 하위 페이지는 링크로 남습니다.
 
