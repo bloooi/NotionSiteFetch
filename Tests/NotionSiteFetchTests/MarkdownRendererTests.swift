@@ -71,7 +71,7 @@ final class MarkdownRendererTests: XCTestCase {
             "callout": [
                 "type": "callout",
                 "properties": ["title": [["Note"]]],
-                "format": ["page_icon": "📎"],
+                "format": ["page_icon": "\ud83d\udcce"],
             ],
             "div": ["type": "divider"],
             "code": [
@@ -121,7 +121,7 @@ final class MarkdownRendererTests: XCTestCase {
         - [x] Done
         > Cited
 
-        > 📎 Note
+        > \ud83d\udcce Note
 
         ---
 
@@ -152,7 +152,7 @@ final class MarkdownRendererTests: XCTestCase {
         let blocks: [String: JSONValue] = [
             "root": [
                 "type": "page",
-                "properties": ["title": [["구독 관리"]]],
+                "properties": ["title": [["\uad6c\ub3c5 \uad00\ub9ac"]]],
                 "content": ["table"],
             ],
             "table": [
@@ -166,8 +166,8 @@ final class MarkdownRendererTests: XCTestCase {
             "h": [
                 "type": "table_row",
                 "properties": [
-                    "colA": [["이름"]],
-                    "colB": [["금액"]],
+                    "colA": [["\uc774\ub984"]],
+                    "colB": [["\uae08\uc561"]],
                 ],
             ],
             "r1": [
@@ -182,11 +182,130 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(
             NotionMarkdownRenderer.render(rootPageID: "root", blocks: blocks),
             """
-            # 구독 관리
+            # \uad6c\ub3c5 \uad00\ub9ac
 
-            | 이름 | 금액 |
+            | \uc774\ub984 | \uae08\uc561 |
             | --- | --- |
             | Netflix | 13,500 |
+
+            """
+        )
+    }
+
+    func testRendersCollectionViewRowsAsMarkdownTable() {
+        let blocks: [String: JSONValue] = [
+            "root": [
+                "type": "page",
+                "properties": ["title": [["Docs"]]],
+                "content": ["view"],
+            ],
+            "view": [
+                "type": "collection_view",
+                "properties": ["title": [["Tasks"]]],
+                "collection_id": "col",
+                "view_ids": ["table-view"],
+            ],
+            "r1": [
+                "type": "page",
+                "properties": [
+                    "title": [["Alpha"]],
+                    "stat": [["Done"]],
+                    "when": [[
+                        "\u2023",
+                        [["d", ["type": "date", "start_date": "2024-09-03"]]],
+                    ]],
+                    "done": [["Yes"]],
+                ],
+                "created_time": 1_720_000_000_000,
+            ],
+            "r2": [
+                "type": "page",
+                "properties": [
+                    "title": [["Beta"]],
+                    "stat": [["Todo"]],
+                    "rel": [[
+                        "\u2023",
+                        [["p", "related"]],
+                    ]],
+                    "who": [[
+                        "\u2023",
+                        [["u", "user-1"]],
+                    ]],
+                ],
+            ],
+            "related": [
+                "type": "page",
+                "properties": ["title": [["Related page"]]],
+            ],
+        ]
+        let collections: [String: JSONValue] = [
+            "col": [
+                "name": [["Tasks"]],
+                "schema": [
+                    "title": ["name": "Name", "type": "title"],
+                    "stat": ["name": "Status", "type": "select"],
+                    "when": ["name": "Due", "type": "date"],
+                    "done": ["name": "Done", "type": "checkbox"],
+                    "rel": ["name": "Link", "type": "relation"],
+                    "who": ["name": "Owner", "type": "person"],
+                    "created": ["name": "Created", "type": "created_time"],
+                ],
+            ],
+        ]
+        let collectionViews: [String: JSONValue] = [
+            "table-view": [
+                "type": "table",
+                "format": [
+                    "table_properties": [
+                        ["property": "title", "visible": true],
+                        ["property": "stat", "visible": true],
+                        ["property": "when", "visible": true],
+                        ["property": "done", "visible": true],
+                        ["property": "rel", "visible": true],
+                        ["property": "who", "visible": true],
+                        ["property": "created", "visible": true],
+                        ["property": "hidden", "visible": false],
+                    ],
+                ],
+            ],
+        ]
+
+        XCTAssertEqual(
+            NotionMarkdownRenderer.render(
+                rootPageID: "root",
+                blocks: blocks,
+                collections: collections,
+                collectionViews: collectionViews,
+                collectionRowIDs: ["view": ["r1", "r2"]],
+                users: ["user-1": ["name": "Ada"]]
+            ),
+            """
+            # Docs
+
+            Tasks
+
+            | Name | Status | Due | Done | Link | Owner | Created |
+            | --- | --- | --- | --- | --- | --- | --- |
+            | Alpha | Done | 2024-09-03 | Yes |  |  | 2024-07-03 |
+            | Beta | Todo |  |  | Related page | Ada |  |
+
+            """
+        )
+    }
+
+    func testCollectionViewWithoutRowsKeepsTitleOnly() {
+        let blocks: [String: JSONValue] = [
+            "root": [
+                "type": "collection_view_page",
+                "properties": ["title": [["Leads Database"]]],
+                "collection_id": "col",
+                "view_ids": ["v"],
+            ],
+        ]
+        XCTAssertEqual(
+            NotionMarkdownRenderer.render(rootPageID: "root", blocks: blocks),
+            """
+            # Leads Database
 
             """
         )
