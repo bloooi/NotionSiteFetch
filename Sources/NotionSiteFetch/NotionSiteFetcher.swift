@@ -97,6 +97,7 @@ public struct NotionSiteFetcher: Sendable {
         onProgress: (@Sendable (FetchStage) -> Void)? = nil
     ) async throws -> NotionFetchedPage {
         let apiBase = NotionPageURL.apiBase(for: url)
+        let preferredViewID = NotionPageURL.viewID(from: url)
         onProgress?(.resolving)
         let resolved = try await PageResolver.resolvePageAndSpace(
             targetURL: url,
@@ -123,7 +124,9 @@ public struct NotionSiteFetcher: Sendable {
         await fetchCollectionViews(
             into: &store,
             rootPageID: resolved.pageID,
-            apiBase: apiBase
+            apiBase: apiBase,
+            spaceDomain: NotionPageURL.spaceDomain(from: url),
+            preferredViewID: preferredViewID
         )
 
         onProgress?(.rendering)
@@ -133,7 +136,8 @@ public struct NotionSiteFetcher: Sendable {
             collections: store.collections,
             collectionViews: store.collectionViews,
             collectionRowIDs: store.collectionRowIDs,
-            users: store.users
+            users: store.users,
+            preferredViewID: preferredViewID
         )
         return NotionFetchedPage(
             rootPageID: resolved.pageID,
@@ -271,7 +275,9 @@ public struct NotionSiteFetcher: Sendable {
     private func fetchCollectionViews(
         into store: inout NotionRecordMap,
         rootPageID: String,
-        apiBase: String
+        apiBase: String,
+        spaceDomain: String? = nil,
+        preferredViewID: String? = nil
     ) async {
         let reachable = store.reachableIDs(from: rootPageID)
         let viewBlocks = store.blocks.compactMap { blockID, block -> (String, JSONValue)? in
@@ -287,7 +293,8 @@ public struct NotionSiteFetcher: Sendable {
             guard let collectionID = NotionRecordMap.collectionID(from: block) else {
                 continue
             }
-            guard let viewID = block["view_ids"].array.compactMap(\.string).first else {
+            let viewIDs = block["view_ids"].array.compactMap(\.string)
+            guard let viewID = Self.selectViewID(preferredViewID, from: viewIDs) else {
                 continue
             }
 
@@ -303,6 +310,7 @@ public struct NotionSiteFetcher: Sendable {
                 view: store.collectionViews[viewID],
                 spaceID: store.spaceID ?? block["space_id"].string,
                 apiBase: apiBase,
+                spaceDomain: spaceDomain,
                 store: &store
             ) else {
                 continue
@@ -368,94 +376,116 @@ public struct NotionSiteFetcher: Sendable {
         }
     }
 
+    static func selectViewID(_ preferredViewID: String?, from viewIDs: [String]) -> String? {
+        if let preferredViewID {
+            let preferred = preferredViewID.replacingOccurrences(of: "-", with: "").lowercased()
+            if let match = viewIDs.first(where: {
+                $0.replacingOccurrences(of: "-", with: "").lowercased() == preferred
+            }) {
+                return match
+            }
+        }
+        return viewIDs.first
+    }
+
     private func queryCollectionRows(
         collectionID: String,
         viewID: String,
         view: JSONValue?,
         spaceID: String?,
         apiBase: String,
+        spaceDomain: String? = nil,
         store: inout NotionRecordMap
     ) async -> [String]? {
-        var limit = min(max(configuration.collectionRowLimit, 1), 1000)
-        var lastIDs: [String]?
         var extraHeaders: [String: String] = [:]
         if let spaceID {
             extraHeaders["x-notion-space-id"] = spaceID
         }
 
-        for _ in 0..<4 {
-            var collectionPointer: [String: JSONValue] = ["id": .string(collectionID)]
-            var viewPointer: [String: JSONValue] = ["id": .string(viewID)]
-            if let spaceID {
-                collectionPointer["spaceId"] = .string(spaceID)
-                viewPointer["spaceId"] = .string(spaceID)
-            }
+        for includeViewQuery in [true, false] {
+            var limit = min(max(configuration.collectionRowLimit, 1), 1000)
+            for _ in 0..<4 {
+                var collectionPointer: [String: JSONValue] = ["id": .string(collectionID)]
+                var viewPointer: [String: JSONValue] = ["id": .string(viewID)]
+                if let spaceID {
+                    collectionPointer["spaceId"] = .string(spaceID)
+                    viewPointer["spaceId"] = .string(spaceID)
+                }
 
-            var loader: [String: JSONValue] = [
-                "type": "reducer",
-                "reducers": [
-                    "collection_group_results": [
-                        "type": "results",
-                        "limit": .number(Double(limit)),
-                        "loadContentCover": true,
+                var loader: [String: JSONValue] = [
+                    "type": "reducer",
+                    "reducers": [
+                        "collection_group_results": [
+                            "type": "results",
+                            "limit": .number(Double(limit)),
+                            "loadContentCover": true,
+                        ],
                     ],
-                ],
-                "searchQuery": "",
-                "userTimeZone": "America/New_York",
-            ]
-            if let view {
-                let sort = view["query2"]["sort"]
-                if !sort.isNull {
-                    loader["sort"] = sort
+                    "searchQuery": "",
+                    "userTimeZone": "America/New_York",
+                ]
+                if includeViewQuery, let view {
+                    let sort = view["query2"]["sort"]
+                    if !sort.isNull {
+                        loader["sort"] = sort
+                    }
+                    let filter = view["query2"]["filter"]
+                    if !filter.isNull {
+                        loader["filter"] = filter
+                    }
                 }
-                let filter = view["query2"]["filter"]
-                if !filter.isNull {
-                    loader["filter"] = filter
+
+                let payload: JSONValue = [
+                    "collection": .object(collectionPointer),
+                    "collectionView": .object(viewPointer),
+                    "source": [
+                        "type": "collection",
+                        "id": .string(collectionID),
+                    ],
+                    "loader": .object(loader),
+                ]
+
+                guard let response = await postCollectionQuery(
+                    apiBase: apiBase,
+                    spaceDomain: spaceDomain,
+                    body: payload,
+                    extraHeaders: extraHeaders
+                ) else {
+                    break
                 }
-            }
 
-            let payload: JSONValue = [
-                "collection": .object(collectionPointer),
-                "collectionView": .object(viewPointer),
-                "source": [
-                    "type": "collection",
-                    "id": .string(collectionID),
-                ],
-                "loader": .object(loader),
-            ]
-
-            guard let response = await postCollectionQuery(
-                apiBase: apiBase,
-                body: payload,
-                extraHeaders: extraHeaders
-            ) else {
-                return lastIDs
+                store.ingest(response["recordMap"])
+                let group = response["result"]["reducerResults"]["collection_group_results"]
+                let ids = group["blockIds"].array.compactMap(\.string)
+                if group["hasMore"].bool == true, limit < 1000 {
+                    limit = min(max(limit * 5, limit + 1), 1000)
+                    continue
+                }
+                return ids
             }
-
-            store.ingest(response["recordMap"])
-            let group = response["result"]["reducerResults"]["collection_group_results"]
-            let ids = group["blockIds"].array.compactMap(\.string)
-            lastIDs = ids
-            if group["hasMore"].bool == true, limit < 1000 {
-                limit = min(max(limit * 5, limit + 1), 1000)
-                continue
-            }
-            return ids
         }
-        return lastIDs
+        return nil
     }
 
     private func postCollectionQuery(
         apiBase: String,
+        spaceDomain: String? = nil,
         body: JSONValue,
         extraHeaders: [String: String]
     ) async -> JSONValue? {
         var seen = Set<String>()
-        let urls = [
+        var urlStrings = [
             "\(apiBase)/queryCollection?src=initial_load",
             "https://www.notion.so/api/v3/queryCollection?src=initial_load",
             "https://app.notion.com/api/v3/queryCollection?src=initial_load",
-        ].filter { seen.insert($0).inserted }.compactMap(URL.init(string:))
+        ]
+        if let spaceDomain {
+            urlStrings.insert(
+                "https://\(spaceDomain).notion.site/api/v3/queryCollection?src=initial_load",
+                at: 0
+            )
+        }
+        let urls = urlStrings.filter { seen.insert($0).inserted }.compactMap(URL.init(string:))
 
         for url in urls {
             do {
