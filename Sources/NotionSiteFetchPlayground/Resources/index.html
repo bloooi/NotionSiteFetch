@@ -59,10 +59,14 @@
       margin: 0;
     }
     .lede {
-      max-width: 34ch;
+      max-width: 38ch;
       color: var(--mute);
       margin: 0;
       font-size: 15px;
+    }
+    .lede code {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 12px;
     }
     form.composer {
       margin-top: 22px;
@@ -178,6 +182,25 @@
       border-left: 3px solid var(--mark);
       color: #3d3328;
     }
+    .preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.1em 0;
+      font-family: "IBM Plex Sans KR", sans-serif;
+      font-size: 14px;
+    }
+    .preview th, .preview td {
+      border: 1px solid var(--rule);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .preview th {
+      background: #efe4cc;
+      font-weight: 600;
+    }
+    .preview tbody tr:nth-child(even) { background: #fff3dc; }
+    .preview tbody tr:hover { background: #ffe9c4; }
     .source {
       margin: 0;
       white-space: pre-wrap;
@@ -214,27 +237,29 @@
         <p class="kicker">Swift Package Playground</p>
         <h1>공개 Notion 페이지를 Markdown으로.</h1>
       </div>
-      <p class="lede">토큰 없이, 이 패키지의 실제 Swift 라이브러리로 가져옵니다. URL을 넣으면 원본 notion-site-fetch와 같은 공개 API 경로를 탑니다.</p>
+      <p class="lede">토큰 없이 이 패키지의 Swift 라이브러리로 가져옵니다. 일반 페이지뿐 아니라 데이터베이스 뷰 행, <code>app.notion.com/p/…?v=</code> 도 같은 경로입니다.</p>
     </header>
 
     <form class="composer" id="form">
       <label for="url">Notion URL</label>
       <div class="row">
-        <input id="url" name="url" type="url" required placeholder="https://example.notion.site/..." />
+        <input id="url" name="url" type="url" required placeholder="https://app.notion.com/p/space/page-id?v=view-id" />
         <button type="submit" id="go">가져오기</button>
       </div>
       <div class="samples">
         <button type="button" class="chip" data-url="https://sota1235.notion.site/Example-page-for-notion-sdk-js-helper-4176d72d760c40979a6a6523fa2c1165">SDK helper 예제</button>
         <button type="button" class="chip" data-url="https://acute-addition-3c1.notion.site/AIIS-Tech-Blog-a9f5f4374afa44ceaf9ef75d697911a3">AIIS Tech Blog</button>
         <button type="button" class="chip" data-url="https://notion.notion.site/What-s-New-157765353f2c4705bd45474e5ba8b46c">Notion What’s New</button>
+        <button type="button" class="chip" data-url="https://canvas-os.notion.site/122f88b8e7ce810683e0f21ccf1b61e9">공개 데이터베이스</button>
+        <button type="button" class="chip" data-url="https://app.notion.com/p/canvas-os/122f88b8e7ce810683e0f21ccf1b61e9">app.notion.com 폼</button>
       </div>
-      <p class="status" id="status">대기 중. 공개 페이지 URL만 동작합니다.</p>
+      <p class="status" id="status">대기 중. 공개 페이지·데이터베이스 URL만 동작합니다. <code>?v=</code> 가 있으면 그 뷰의 행을 가져옵니다.</p>
     </form>
 
     <div class="workspace">
       <section class="panel">
         <h2>미리보기</h2>
-        <div class="preview" id="preview"><p class="empty">아직 가져온 페이지가 없습니다.</p></div>
+        <div class="preview" id="preview"><p class="empty">공개 페이지나 데이터베이스 URL을 넣으면 여기에 표와 본문이 나타납니다.</p></div>
       </section>
       <section class="panel">
         <h2>원본 Markdown</h2>
@@ -244,6 +269,7 @@
 
     <footer>
       이 화면은 <code>NotionSiteFetch</code> 라이브러리를 같은 프로세스에서 호출합니다.
+      데이터베이스는 <code>queryCollection</code> 으로 행을 채운 뒤 Markdown 표로 그립니다.
       CLI는 <code>swift run notion-site-fetch &lt;url&gt;</code> 입니다.
     </footer>
   </div>
@@ -267,7 +293,7 @@
       const url = input.value.trim();
       go.disabled = true;
       status.className = "status";
-      status.textContent = "페이지를 걷는 중… Notion 공개 API를 호출합니다.";
+      status.textContent = "페이지를 걷는 중… 청크와 데이터베이스 행을 가져옵니다.";
       try {
         const response = await fetch("/api/fetch", {
           method: "POST",
@@ -282,7 +308,10 @@
         const rendered = marked.parse(data.markdown, { gfm: true });
         preview.innerHTML = DOMPurify.sanitize(rendered);
         status.className = "status ok";
-        status.textContent = `완료 · 블록 ${data.blockCount}개 · ${data.elapsedMs}ms · ${data.rootPageID}`;
+        const rows = Number(data.collectionRowCount || 0);
+        const views = Number(data.collectionViewCount || 0);
+        const viewNote = data.viewID ? ` · 뷰 ${data.viewID}` : "";
+        status.textContent = `완료 · 블록 ${data.blockCount}개 · DB 행 ${rows}개 · 뷰 ${views}개 · ${data.elapsedMs}ms · ${data.rootPageID}${viewNote}`;
       } catch (error) {
         status.className = "status error";
         status.textContent = error.message;
