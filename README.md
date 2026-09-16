@@ -58,8 +58,9 @@ print(page.collectionRowIDs)
 | `https://<sub>.notion.site/` | 사이트의 공개 홈 페이지 |
 | `https://<sub>.notion.site/<slug-or-id>` | 공개 사이트의 특정 페이지 |
 | `https://www.notion.so/<...>-<32-char-page-id>` | notion.so 페이지 URL |
+| `https://app.notion.com/p/<space>/<page-id>?v=<view-id>` | 게시된 페이지/데이터베이스. `v` 가 있으면 그 뷰의 행을 가져옵니다 |
 
-경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 씁니다.
+경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 쓰니다.
 
 ## CLI
 
