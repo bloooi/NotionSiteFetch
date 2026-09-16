@@ -59,7 +59,7 @@ print(page.collectionRowIDs)
 | `https://<sub>.notion.site/<slug-or-id>` | 공개 사이트의 특정 페이지 |
 | `https://www.notion.so/<...>-<32-char-page-id>` | notion.so 페이지 URL |
 
-경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 쓶니다.
+경로 끝에 32자리 페이지 id가 있으면 호스트와 관계없이 그 id를 씁니다.
 
 ## CLI
 
