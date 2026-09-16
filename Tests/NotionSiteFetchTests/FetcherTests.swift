@@ -284,7 +284,7 @@ final class FetcherTests: XCTestCase {
 
         let fetcher = NotionSiteFetcher(client: client, sleeper: ImmediateSleeper())
         let page = try await fetcher.fetchPage(
-            from: "https://www.notion.so/11111111111111111111111111111111"
+            from: "https://app.notion.com/p/docs/11111111111111111111111111111111?v=\(Fixtures.collectionViewID.replacingOccurrences(of: "-", with: ""))"
         )
 
         XCTAssertEqual(
@@ -318,6 +318,8 @@ final class FetcherTests: XCTestCase {
             client.requests[1].body["loader"]["reducers"]["collection_group_results"]["limit"].int,
             200
         )
+        XCTAssertTrue(client.requests[0].url.contains("docs.notion.site"))
+        XCTAssertTrue(client.requests[1].url.contains("docs.notion.site"))
     }
 
     func testIgnoresCollectionViewOutsidePageTree() async throws {
