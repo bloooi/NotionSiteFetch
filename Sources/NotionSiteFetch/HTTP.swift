@@ -120,15 +120,20 @@ enum NotionAPI {
         body: JSONValue,
         maxRetries: Int,
         maxBackoffSeconds: Double,
-        timeout: TimeInterval? = nil
+        timeout: TimeInterval? = nil,
+        extraHeaders: [String: String] = [:]
     ) async throws -> JSONValue {
         var lastError: NotionSiteFetchError?
 
         for attemptIndex in 0..<maxRetries {
             do {
+                var headers = defaultHeaders
+                for (header, value) in extraHeaders {
+                    headers[header] = value
+                }
                 let request = NotionHTTPRequest(
                     url: url,
-                    headers: defaultHeaders,
+                    headers: headers,
                     body: try body.encodedData(),
                     timeout: timeout
                 )
